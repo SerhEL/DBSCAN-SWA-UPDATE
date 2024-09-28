@@ -1207,7 +1207,7 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			# Восстановить
 			# f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[int(prophage_start)-1:int(prophage_end)]+'\n')
 			pos_prophage_start = int(prophage_start)-1
-			if pos_prophage_start == 0:
+			if pos_prophage_start < 0:
 				pos_prophage_start = int(prophage_start)
 			f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[pos_prophage_start:int(prophage_end)]+'\n')
 			f_save_prophage_nucl.flush()
