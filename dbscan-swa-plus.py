@@ -1203,8 +1203,13 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			for index,region_pro in enumerate(region_pro_sequence_list[0::2]):
 				f_save_prophage_protein.write(region_pro+'|'+str(prophage_pro_num)+'\n'+region_pro_sequence_list[2*index+1].strip()+'\n')
 				f_save_prophage_protein.flush()
-					
-			f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[int(prophage_start)-1:int(prophage_end)]+'\n')
+			
+			# Восстановить
+			# f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[int(prophage_start)-1:int(prophage_end)]+'\n')
+			pos_prophage_start = int(prophage_start)-1
+			if pos_prophage_start == 0:
+				pos_prophage_start = int(prophage_start)
+			f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[pos_prophage_start:int(prophage_end)]+'\n')
 			f_save_prophage_nucl.flush()
 			
 			f_save.write('>prophage '+str(region_index+1)+'\n')
@@ -1478,10 +1483,7 @@ def predict_prophage_dbscan_swa(strain_id,bac_fna_file,bac_faa_file,dbscan_regio
 	
 	f_save_region.write('bacteria_id\tgenome_size\tprophage_start\tprophage_end\tpredict_method\tbest_hit_species\tkey_proteins\n')
 	f_save_region_detail = open(save_prophage_region_detail_file,'w')
-	f_save_region_detail.write('''The following contents displays predicted prophage regions
-first line of each prophage describes the prophage information and the following lines describe the proteins and homology proteins in uniprot database
-prophage_protein_ID\tprophage_protein_product\tkey_proteins\thit_protein_id\thit_species\tidentity\tevalue\n
-''')
+	f_save_region_detail.write('''The following contents displays predicted prophage regions first line of each prophage describes the prophage information and the following lines describe the proteins and homology proteins in uniprot database prophage_protein_ID\tprophage_protein_product\tkey_proteins\thit_protein_id\thit_species\tidentity\tevalue\n''')
 	save_prophage_protein_file = os.path.join(outdir,prefix+'_prophage.faa')
 	save_prophage_nucl_file = os.path.join(outdir,prefix+'_prophage.fna')
 	f_save_protein = open(save_prophage_protein_file,'w')
@@ -2546,7 +2548,7 @@ def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamon
 	print('STEP3:predict prophage regions by DBSCAN and SWA')
 	m1 = threading.Thread(target=dbscan,args=(phage_like_protein_list,phage_gene_annotation_dir,prefix))
 	# m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,60,prefix))
-	m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,10,prefix))
+	m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,6,prefix))
 	m1.start()
 	m2.start()
 	m1.join()
@@ -2748,9 +2750,7 @@ if __name__=='__main__':
 	if args.proteins:
 		ATT_PROTEINS = args.proteins
 	else:
-		print('--proteins Укажите файл с белками, формат GBK')
 		ATT_PROTEINS = ''
-		#sys.exit(1)
 
 	global ATT_MIN_IDN
 	if args.min_idn:
@@ -2811,20 +2811,20 @@ if __name__=='__main__':
 		att_pro_num = args.protein_number
 		if int(att_pro_num)<1:
 			print('Warning:the protein number of expanding can not be smaller than 1')
-			att_pro_num = 10
-			print('the protein number of expanding has been set to 10')
+			att_pro_num = 1
+			print('the protein number of expanding has been set to 1')
 	else:
-		att_pro_num = 10
+		att_pro_num = 1
 		
 	global min_protein_num
 	if args.min_protein_num:
 		min_protein_num = args.min_protein_num
-		if int(min_protein_num)<6:
-			print('Warning:the protein number of shaping a cluster can not be smaller than 6')
-			min_protein_num = 6
-			print('the protein number of expanding has been set to 6')
+		if int(min_protein_num)<1:
+			print('Warning:the protein number of shaping a cluster can not be smaller than 1')
+			min_protein_num = 1
+			print('the protein number of expanding has been set to 1')
 	else:
-		min_protein_num = 6
+		min_protein_num = 1
 	
 	root_path = get_root_path()
 	database = os.path.join(root_path,'db')
