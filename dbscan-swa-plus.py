@@ -12,20 +12,20 @@ import json
 def inputinstructions():
 	return """
 Usage: DBSCAN-SWA [options]
---input <file name>        : Query phage file path: FASTA or Multi-Fasta or GenBank file
---output <folder name>     : Output folder in which results will be stored
---prefix <prefix>          : default: bac:
---evalue <x>               : maximal E-value of searching for homology virus proteins from viral UniProt TrEML database. default:1e-7
---min_protein_num <x>      : optional,the minimal number of proteins forming a phage cluster in DBSCAN, default:6
---protein_number <x>       : optional,the number of expanding proteins when finding prophage att sites, default:10
+--input <file name>		: Query phage file path: FASTA or Multi-Fasta or GenBank file
+--output <folder name>	 : Output folder in which results will be stored
+--prefix <prefix>		  : default: bac:
+--evalue <x>			   : maximal E-value of searching for homology virus proteins from viral UniProt TrEML database. default:1e-7
+--min_protein_num <x>	  : optional,the minimal number of proteins forming a phage cluster in DBSCAN, default:6
+--protein_number <x>	   : optional,the number of expanding proteins when finding prophage att sites, default:10
 --add_annotation <options> : optional,1.PGPD: a phage genome and protein database,2.phage_path:specified phage genome to detect whether the phage infects the query bacteria
 							3.none:no phage annotation. default:PGPD
---per <x>                  : Minimal % percentage of hit proteins on hit prophage region(default:30)
---idn <x>                  : Minimal % identity of hit region on hit prophage region by making blastn(default:70)
---cov <x>                  : Minimal % coverage of hit region on hit prophage region by making blastn(default:30)
---thread_num <x>           : the number of threads(default:10)
---proteins                 : Дополнильный способ аннотации
---min_idn                  : Минимальный % идентичности для DIAMOND (default:90)
+--per <x>				  : Minimal % percentage of hit proteins on hit prophage region(default:30)
+--idn <x>				  : Minimal % identity of hit region on hit prophage region by making blastn(default:70)
+--cov <x>				  : Minimal % coverage of hit region on hit prophage region by making blastn(default:30)
+--thread_num <x>		   : the number of threads(default:10)
+--proteins				 : Дополнильный способ аннотации
+--min_idn				  : Минимальный % идентичности для DIAMOND (default:90)
 """
 
 def get_root_path():
@@ -86,14 +86,11 @@ def dbscan(phage_like_protein_list,outdir,prefix):
 	model = DBSCAN(eps=3000,min_samples=int(min_protein_num),metric=lambda a, b: pro_distance(a, b))
 	prediction = model.fit_predict(protein_location_list)
 	protein_index_list = np.argsort(protein_start_list1)
-	#print(protein_location_list)
 	regions_id = []
 	region_details = {}
 	save_dbscan_region = [list(map(int,phage_like_protein_list[protein_index_list[0]][1:3]))]
-	#print(save_dbscan_region)
 	counter = 0
 	for index in protein_index_list:
-		# print(index)
 		if prediction[index] != -1:
 			if prediction[index] not in regions_id:
 				regions_id.append(prediction[index])
@@ -110,7 +107,8 @@ def dbscan(phage_like_protein_list,outdir,prefix):
 				save_dbscan_region.append([start,end])
 				region_details.update({counter:[[],[]]})
 			
-			if len(orf_name.split('|'))==4:
+			# Если длина региона равна 4 или 6, то значит там есть ключевой белок с конца
+			if len(orf_name.split('|'))==4 or len(orf_name.split('|'))==6:
 				key_protein = orf_name.split('|')[-1].split(',')
 			else:
 				key_protein = ['NA']
@@ -121,7 +119,7 @@ def dbscan(phage_like_protein_list,outdir,prefix):
 			if 'NA' in region_details[counter][0]:
 				region_details[counter][0].remove('NA')
 			region_details[counter][1].append([start,end,orf_name]+protein_info[3:])
-
+	
 	for region_id in region_details.keys():
 		items = region_details[region_id][1]
 		key_proteins = region_details[region_id][0]
@@ -333,7 +331,7 @@ def GetFaaSequenc(fileName,saveFaaPath,prefix,add_genome_id='no'):   #parse spec
 	savefile_protein = open(outfiledef,'w')
 	for record in records:
 		for feature in record.features:
-			if (feature.type == 'CDS') or (feature.type == 'tRNA') or (feature.type == 'tmRNA'):                
+			if (feature.type == 'CDS') or (feature.type == 'tRNA') or (feature.type == 'tmRNA'):				
 				location = feature.location
 				if str(location).find('+') != -1:
 					direction = '+'
@@ -354,7 +352,7 @@ def GetFaaSequenc(fileName,saveFaaPath,prefix,add_genome_id='no'):   #parse spec
 					key_pros = []
 					for special in special_pros:
 						if special in product:
-							key_pros.append(special)      
+							key_pros.append(special)	  
 					if 'protein_id' in feature.qualifiers:
 						proteinId = feature.qualifiers['protein_id'][0]
 					else:
@@ -373,11 +371,11 @@ def GetFaaSequenc(fileName,saveFaaPath,prefix,add_genome_id='no'):   #parse spec
 								savefile_protein.write(proteinId+'\t'+str(location)+'\t'+product+'\n')
 						else:
 							savefile.write('>'+add_genome_id + '|' + str(proteinId) + '|' + str(location) +'\n')
-					# savefile.write(">"+fileID+ '_'+str(counter)+'\n')                   
+					# savefile.write(">"+fileID+ '_'+str(counter)+'\n')				   
 						if translation[-1] == '\n':
 							savefile.write(translation)
 						else:
-							savefile.write(translation + '\n')                  
+							savefile.write(translation + '\n')				  
 	savefile.close()
 	savefile_protein.close()
 
@@ -385,10 +383,10 @@ def diamond_blastp(file,outfile,database,format,evalue,diamond_thread_num=20,min
 	diamond_path = os.path.join(root_path,'software','diamond','diamond') 
 	# script = diamond_path+" blastp -d "+database+" -q "+file+" -f "+str(format)+" -e "+str(evalue)+" -o "+outfile+" -p "+str(diamond_thread_num)+" --max-target-seqs 1"
 	script = (
-        f"{diamond_path} blastp -d {database} -q {file} -f {format} -e {evalue} "
-        f"-o {outfile} -p {diamond_thread_num} --max-target-seqs 1 --id {min_identity}"
-    )
-	print(script)
+		f"{diamond_path} blastp -d {database} -q {file} -f {format} -e {evalue} "
+		f"-o {outfile} -p {diamond_thread_num} --max-target-seqs 1 --id {min_identity}"
+	)
+	print('Команда ', script)
 	os.system(script)
 
 def blastp(file,outfile,database,format,evalue):
@@ -483,10 +481,10 @@ def dict_to_file(dict,outfile):
 	f.close()
 
 def GetFnaSequence(fileName,outFileName):
-    # fileID = fileName.split('/')[-1].strip('.gb')
-    # outFileName = os.path.join(os.path.dirname(fileName),fileID+'.fasta')
-    handle = open(fileName)
-    SeqIO.convert(handle, 'genbank',outFileName, 'fasta')
+	# fileID = fileName.split('/')[-1].strip('.gb')
+	# outFileName = os.path.join(os.path.dirname(fileName),fileID+'.fasta')
+	handle = open(fileName)
+	SeqIO.convert(handle, 'genbank',outFileName, 'fasta')
 
 def get_faa_protein_fasta(pro_file):
 	with open(pro_file) as f:
@@ -609,17 +607,28 @@ def get_protein_to_position_genbank(pro_file,start,end,outfile,method,strain_id)
 	all_pro_sequence_list = []
 	counter = 0
 	for line in contents[1:]:
-		pro_start = line.split('\n')[0].split('|')[2].split('_')[-3]
-		pro_end = line.split('\n')[0].split('|')[2].split('_')[-2]
-		pro_id = line.split('\n')[0].split('|')[1]
-		direction = line.split('\n')[0].split('|')[2].split('_')[-1]
+		# Отбираем заголовок и саму белковую последовательность
+		head_faa = line.split('\n')[0]
 		sequence = ''.join(line.split('\n')[1:]).strip()
-		#print(sequence)
+		# Разделяем заголовок на подстроки
+		# |gnl|Bakta|BMPEDJ_00001|100_2563_+
+		# |ABDAGPGG_00001|100_2563_+
+		lineparts = head_faa.split('|')
+		if 'gnl' in lineparts and 'Bakta' in lineparts:
+			pro_start = lineparts[4].split('_')[-3]
+			pro_end   = lineparts[4].split('_')[-2]
+			pro_id	= lineparts[3]
+			direction = lineparts[4].split('_')[-1]
+		else:
+			pro_start = lineparts[2].split('_')[-3]
+			pro_end   = lineparts[2].split('_')[-2]
+			pro_id	= lineparts[1]
+			direction = lineparts[2].split('_')[-1]
 		if (min(int(start),int(end)) <= min(int(pro_start),int(pro_end))) and (max(int(start),int(end)) >= max(int(pro_start),int(pro_end))):
 			counter = counter+1
-			f_result.write('>'+strain_id+'|'+str(start)+':'+str(end)+'|'+line.split('\n')[0].strip().strip('|')+'|'+method+'\n')
+			f_result.write('>'+strain_id+'|'+str(start)+':'+str(end)+'|'+head_faa.strip().strip('|')+'|'+method+'\n')
 			f_result.write(sequence.strip()+'\n')
-			all_pro_sequence_list.append('>'+strain_id+'|'+str(start)+':'+str(end)+'|'+line.split('\n')[0].strip().strip('|')+'|'+method)
+			all_pro_sequence_list.append('>'+strain_id+'|'+str(start)+':'+str(end)+'|'+head_faa.strip().strip('|')+'|'+method)
 			all_pro_sequence_list.append(sequence)
 	f_result.close()
 	return all_pro_sequence_list,counter
@@ -729,196 +738,209 @@ def get_att_0(out_blastn_file,save_file):
 	f_result.close()
 
 def getUpStreamProt_fasta(faa_file,region_start,num_prot,genome_id):
-    up_stream_prot_temp = []
-    hitFlag = 0
-    titles = []
-    index = 0
-    with open(faa_file, 'r')as fin:
-        content = fin.read()
-        elems = content.split('>')
-        if '' in elems:
-            elems.remove('')
-        prot_count = 0
-        for elem in elems[::-1]:
-            cur_genome_id = '_'.join(elem.split('\n')[0].strip().split('_')[0:-3])
-            #if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
-            if len(elem.split('\n')[0].split('_'))>3:
-                cur_prot_start = elem.split('\n')[0].split('_')[-3]
-                cur_prot_end = elem.split('\n')[0].split('_')[-2]
-                if int(cur_prot_end) < int(region_start):
-                    if prot_count == num_prot:
-                        break
-                    else:
-                        prot_count = prot_count + 1
-                        prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
-                        prot_info = '%s-%s|%saa' % (cur_prot_start, cur_prot_end, prot_size)
-                        titles.append(prot_size+'aa|up_'+str(index)+'|'+elem.strip().split('\n')[0])
-                        index = index+1
-                        up_stream_prot_temp.append('>'+elem.strip())
-        titles = titles[::-1]
-        if len(up_stream_prot_temp)>0:
-            num_prior_prot = len(up_stream_prot_temp)
-            if len(up_stream_prot_temp)==num_prot:
-                up_stream_prot_list = up_stream_prot_temp
-            else:
-                titles = ['NA']*(num_prot-len(up_stream_prot_temp))+titles
-                up_stream_prot_list = up_stream_prot_temp
-        else:
-            titles = ['NA']*num_prot
-            up_stream_prot_list = ['NA']*num_prot
-    return [up_stream_prot_list,titles]
+	up_stream_prot_temp = []
+	hitFlag = 0
+	titles = []
+	index = 0
+	with open(faa_file, 'r')as fin:
+		content = fin.read()
+		elems = content.split('>')
+		if '' in elems:
+			elems.remove('')
+		prot_count = 0
+		for elem in elems[::-1]:
+			cur_genome_id = '_'.join(elem.split('\n')[0].strip().split('_')[0:-3])
+			#if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
+			if len(elem.split('\n')[0].split('_'))>3:
+				cur_prot_start = elem.split('\n')[0].split('_')[-3]
+				cur_prot_end = elem.split('\n')[0].split('_')[-2]
+				if int(cur_prot_end) < int(region_start):
+					if prot_count == num_prot:
+						break
+					else:
+						prot_count = prot_count + 1
+						prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
+						prot_info = '%s-%s|%saa' % (cur_prot_start, cur_prot_end, prot_size)
+						titles.append(prot_size+'aa|up_'+str(index)+'|'+elem.strip().split('\n')[0])
+						index = index+1
+						up_stream_prot_temp.append('>'+elem.strip())
+		titles = titles[::-1]
+		if len(up_stream_prot_temp)>0:
+			num_prior_prot = len(up_stream_prot_temp)
+			if len(up_stream_prot_temp)==num_prot:
+				up_stream_prot_list = up_stream_prot_temp
+			else:
+				titles = ['NA']*(num_prot-len(up_stream_prot_temp))+titles
+				up_stream_prot_list = up_stream_prot_temp
+		else:
+			titles = ['NA']*num_prot
+			up_stream_prot_list = ['NA']*num_prot
+	return [up_stream_prot_list,titles]
 
 def getDownStreamProt_fasta(faa_file,region_end,num_prot,genome_id):
-    down_stream_prot_list = []
-    titles = []
-    index = 0
-    with open(faa_file,'r')as fin:
-        content = fin.read()
-        elems = content.split('>')
-        if '' in elems:
-            elems.remove('')
-        prot_count = 0
-        for elem in elems:
-            # cur_genome_id = elem.split('\n')[0].split('_')[-0].split('.')[0]
-            cur_genome_id = '_'.join(elem.split('\n')[0].strip().split('_')[0:-3])
-            # if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
-            if len(elem.split('\n')[0].split('_'))>3:
-                cur_prot_start = elem.split('\n')[0].split('_')[-3]
-                cur_prot_end = elem.split('\n')[0].split('_')[-2]
-                if int(cur_prot_start) > int(region_end):
-                    if prot_count == num_prot:
-                        break
-                    else:
-                        prot_count = prot_count + 1
-                        prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
-                        titles.append(prot_size+'aa|down_'+str(index)+'|'+elem.strip().split('\n')[0])
-                        index = index+1
-                        prot_info = '%s-%s|%saa'%(cur_prot_start,cur_prot_end,prot_size)
-                        down_stream_prot_list.append('>'+elem.strip())
-        if len(down_stream_prot_list)>0:
-            num_prior_prot = len(down_stream_prot_list)
-            if len(down_stream_prot_list)<num_prot:
-                titles = titles+['NA']*(num_prot-len(down_stream_prot_list))
-                down_stream_prot_list = down_stream_prot_list
-        else:
-            down_stream_prot_list = ['NA']*num_prot
-            titles = ['NA']*num_prot
-    return [down_stream_prot_list,titles]
+	down_stream_prot_list = []
+	titles = []
+	index = 0
+	with open(faa_file,'r')as fin:
+		content = fin.read()
+		elems = content.split('>')
+		if '' in elems:
+			elems.remove('')
+		prot_count = 0
+		for elem in elems:
+			# cur_genome_id = elem.split('\n')[0].split('_')[-0].split('.')[0]
+			cur_genome_id = '_'.join(elem.split('\n')[0].strip().split('_')[0:-3])
+			# if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
+			if len(elem.split('\n')[0].split('_'))>3:
+				cur_prot_start = elem.split('\n')[0].split('_')[-3]
+				cur_prot_end = elem.split('\n')[0].split('_')[-2]
+				if int(cur_prot_start) > int(region_end):
+					if prot_count == num_prot:
+						break
+					else:
+						prot_count = prot_count + 1
+						prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
+						titles.append(prot_size+'aa|down_'+str(index)+'|'+elem.strip().split('\n')[0])
+						index = index+1
+						prot_info = '%s-%s|%saa'%(cur_prot_start,cur_prot_end,prot_size)
+						down_stream_prot_list.append('>'+elem.strip())
+		if len(down_stream_prot_list)>0:
+			num_prior_prot = len(down_stream_prot_list)
+			if len(down_stream_prot_list)<num_prot:
+				titles = titles+['NA']*(num_prot-len(down_stream_prot_list))
+				down_stream_prot_list = down_stream_prot_list
+		else:
+			down_stream_prot_list = ['NA']*num_prot
+			titles = ['NA']*num_prot
+	return [down_stream_prot_list,titles]
 
 def getUpStreamProt_gb(faa_file,region_start,num_prot,genome_id):
-    up_stream_prot_temp = []
-    hitFlag = 0
-    titles = []
-    with open(faa_file, 'r')as fin:
-        content = fin.read()
-        elems = content.split('>ref')
-        if '' in elems:
-            elems.remove('')
-        prot_count = 0
-        for elem in elems[::-1]:
-            defLine = elem.split('\n')[0]
-            cur_genome_id = defLine.split('|')[1].split('.')[0]
-            #if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
-            if len(defLine.split('|'))>=3:
-                prot_location = defLine.split('|')[2]
-                replace_list = ['>', '<']
-                for replace_item in replace_list:
-                    prot_location = prot_location.replace(replace_item, '')
-                if 'join' in prot_location:
-                    prot_location = prot_location.replace('join{', '')
-                    prot_location = prot_location.replace('}', '')
-                    prot_location_list = prot_location.split(',')
-                    cur_prot_start = min(int(prot_location_list[0].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[0].split(':')[1].split(']')[0]),
-                                         int(prot_location_list[-1].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[-1].split(':')[1].split(']')[0])
-                                         )
-                    cur_prot_end = max(int(prot_location_list[0].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[0].split(':')[1].split(']')[0]),
-                                         int(prot_location_list[-1].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[-1].split(':')[1].split(']')[0]))
-                else:
-                    cur_prot_start = min(int(get_num(prot_location)[0]),
-                    int(get_num(prot_location)[-1]))
-                    cur_prot_end = max(int(get_num(prot_location)[0]),
-                    int(get_num(prot_location)[-1]))
-                if int(cur_prot_end) < int(region_start):
-                    if prot_count == num_prot:
-                        break
-                    else:
-                        prot_count = prot_count + 1
-                        prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
-                        prot_info = '%s-%s|%saa' % (cur_prot_start, cur_prot_end, prot_size)
-                        titles.append('ref'+elem.strip().split('\n')[0])
-                        up_stream_prot_temp.append('>ref'+elem.strip())
-        titles = titles[::-1]
-        if len(up_stream_prot_temp)>0:
-            num_prior_prot = len(up_stream_prot_temp)
-            if len(up_stream_prot_temp)==num_prot:
-                up_stream_prot_list = up_stream_prot_temp
-            else:
-                titles = ['NA']*(num_prot-len(up_stream_prot_temp))+titles
-                up_stream_prot_list = up_stream_prot_temp
-        else:
-            titles = ['NA']*num_prot
-            up_stream_prot_list = ['NA']*num_prot
-    return [up_stream_prot_list,titles]
+	up_stream_prot_temp = []
+	hitFlag = 0
+	titles = []
+	with open(faa_file, 'r')as fin:
+		content = fin.read()
+		elems = content.split('>ref')
+		if '' in elems:
+			elems.remove('')
+		prot_count = 0
+		for elem in elems[::-1]:
+			defLine = elem.split('\n')[0]
+			cur_genome_id = defLine.split('|')[1].split('.')[0]
+			#if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
+			if len(defLine.split('|'))>=3:
+
+				lineparts = defLine.split('|')
+				if 'gnl' in lineparts and 'Bakta' in lineparts:
+					prot_location = defLine.split('|')[4]
+				else:
+					prot_location = defLine.split('|')[2]
+
+				replace_list = ['>', '<']
+				for replace_item in replace_list:
+					prot_location = prot_location.replace(replace_item, '')
+
+				if 'join' in prot_location:
+					prot_location = prot_location.replace('join{', '')
+					prot_location = prot_location.replace('}', '')
+					prot_location_list = prot_location.split(',')
+					cur_prot_start = min(int(prot_location_list[0].split(':')[0].split('[')[1]),
+										 int(prot_location_list[0].split(':')[1].split(']')[0]),
+										 int(prot_location_list[-1].split(':')[0].split('[')[1]),
+										 int(prot_location_list[-1].split(':')[1].split(']')[0])
+										 )
+					cur_prot_end = max(int(prot_location_list[0].split(':')[0].split('[')[1]),
+										 int(prot_location_list[0].split(':')[1].split(']')[0]),
+										 int(prot_location_list[-1].split(':')[0].split('[')[1]),
+										 int(prot_location_list[-1].split(':')[1].split(']')[0]))
+				else:
+					cur_prot_start = min(int(get_num(prot_location)[0]),
+					int(get_num(prot_location)[-1]))
+					cur_prot_end = max(int(get_num(prot_location)[0]),
+					int(get_num(prot_location)[-1]))
+				if int(cur_prot_end) < int(region_start):
+					if prot_count == num_prot:
+						break
+					else:
+						prot_count = prot_count + 1
+						prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
+						prot_info = '%s-%s|%saa' % (cur_prot_start, cur_prot_end, prot_size)
+						titles.append('ref'+elem.strip().split('\n')[0])
+						up_stream_prot_temp.append('>ref'+elem.strip())
+		titles = titles[::-1]
+		if len(up_stream_prot_temp)>0:
+			num_prior_prot = len(up_stream_prot_temp)
+			if len(up_stream_prot_temp)==num_prot:
+				up_stream_prot_list = up_stream_prot_temp
+			else:
+				titles = ['NA']*(num_prot-len(up_stream_prot_temp))+titles
+				up_stream_prot_list = up_stream_prot_temp
+		else:
+			titles = ['NA']*num_prot
+			up_stream_prot_list = ['NA']*num_prot
+	return [up_stream_prot_list,titles]
 
 def getDownStreamProt_gb(faa_file,region_end,num_prot,genome_id):
-    down_stream_prot_list = []
-    titles = []
-    with open(faa_file,'r')as fin:
-        content = fin.read()
-        elems = content.split('>ref')
-        if '' in elems:
-            elems.remove('')
-        prot_count = 0
-        for elem in elems:
-            # cur_genome_id = elem.split('\n')[0].split('_')[-0].split('.')[0]
-            defLine = elem.split('\n')[0]
-            #cur_genome_id = defLine.split('|')[1].split('.')[0]
-            # if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
-            if len(defLine.split('|'))>=3:
-                prot_location = defLine.split('|')[2]
-                replace_list = ['>', '<']
-                for replace_item in replace_list:
-                    prot_location = prot_location.replace(replace_item, '')
-                if 'join' in prot_location:
-                    prot_location = prot_location.replace('join{', '')
-                    prot_location = prot_location.replace('}', '')
-                    prot_location_list = prot_location.split(',')
-                    cur_prot_start = min(int(prot_location_list[0].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[0].split(':')[1].split(']')[0]),
-                                         int(prot_location_list[-1].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[-1].split(':')[1].split(']')[0])
-                                         )
-                    cur_prot_end = max(int(prot_location_list[0].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[0].split(':')[1].split(']')[0]),
-                                         int(prot_location_list[-1].split(':')[0].split('[')[1]),
-                                         int(prot_location_list[-1].split(':')[1].split(']')[0]))
-                else:
-                    cur_prot_start = min(int(get_num(prot_location)[0]),
-                    int(get_num(prot_location)[-1]))
-                    cur_prot_end = max(int(get_num(prot_location)[0]),
-                    int(get_num(prot_location)[-1]))
-                if int(cur_prot_start) > int(region_end):
-                    if prot_count == num_prot:
-                        break
-                    else:
-                        prot_count = prot_count + 1
-                        prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
-                        titles.append('ref'+elem.strip().split('\n')[0])
-                        prot_info = '%s-%s|%saa'%(cur_prot_start,cur_prot_end,prot_size)
-                        down_stream_prot_list.append('>ref'+elem.strip())
-        if len(down_stream_prot_list)>0:
-            num_prior_prot = len(down_stream_prot_list)
-            if len(down_stream_prot_list)<num_prot:
-                titles = titles+['NA']*(num_prot-len(down_stream_prot_list))
-                down_stream_prot_list = down_stream_prot_list
-        else:
-            down_stream_prot_list = ['NA']*num_prot
-            titles = ['NA']*num_prot
-    return [down_stream_prot_list,titles]
+	down_stream_prot_list = []
+	titles = []
+	with open(faa_file,'r')as fin:
+		content = fin.read()
+		elems = content.split('>ref')
+		if '' in elems:
+			elems.remove('')
+		prot_count = 0
+		for elem in elems:
+			# cur_genome_id = elem.split('\n')[0].split('_')[-0].split('.')[0]
+			defLine = elem.split('\n')[0]
+			#cur_genome_id = defLine.split('|')[1].split('.')[0]
+			# if (genome_id in cur_genome_id) or (cur_genome_id in genome_id):
+			if len(defLine.split('|'))>=3:
+
+				lineparts = defLine.split('|')
+				if 'gnl' in lineparts and 'Bakta' in lineparts:
+					prot_location = defLine.split('|')[4]
+				else:
+					prot_location = defLine.split('|')[2]
+
+				replace_list = ['>', '<']
+				for replace_item in replace_list:
+					prot_location = prot_location.replace(replace_item, '')
+				if 'join' in prot_location:
+					prot_location = prot_location.replace('join{', '')
+					prot_location = prot_location.replace('}', '')
+					prot_location_list = prot_location.split(',')
+					cur_prot_start = min(int(prot_location_list[0].split(':')[0].split('[')[1]),
+										 int(prot_location_list[0].split(':')[1].split(']')[0]),
+										 int(prot_location_list[-1].split(':')[0].split('[')[1]),
+										 int(prot_location_list[-1].split(':')[1].split(']')[0])
+										 )
+					cur_prot_end = max(int(prot_location_list[0].split(':')[0].split('[')[1]),
+										 int(prot_location_list[0].split(':')[1].split(']')[0]),
+										 int(prot_location_list[-1].split(':')[0].split('[')[1]),
+										 int(prot_location_list[-1].split(':')[1].split(']')[0]))
+				else:
+					cur_prot_start = min(int(get_num(prot_location)[0]),
+					int(get_num(prot_location)[-1]))
+					cur_prot_end = max(int(get_num(prot_location)[0]),
+					int(get_num(prot_location)[-1]))
+				if int(cur_prot_start) > int(region_end):
+					if prot_count == num_prot:
+						break
+					else:
+						prot_count = prot_count + 1
+						prot_size = str(int((int(cur_prot_end) - int(cur_prot_start) + 1) / 3))
+						titles.append('ref'+elem.strip().split('\n')[0])
+						prot_info = '%s-%s|%saa'%(cur_prot_start,cur_prot_end,prot_size)
+						down_stream_prot_list.append('>ref'+elem.strip())
+		if len(down_stream_prot_list)>0:
+			num_prior_prot = len(down_stream_prot_list)
+			if len(down_stream_prot_list)<num_prot:
+				titles = titles+['NA']*(num_prot-len(down_stream_prot_list))
+				down_stream_prot_list = down_stream_prot_list
+		else:
+			down_stream_prot_list = ['NA']*num_prot
+			titles = ['NA']*num_prot
+	return [down_stream_prot_list,titles]
 
 def getProt_region_gb(faa_file,region_start,region_end):
 	prot_list = []
@@ -929,7 +951,7 @@ def getProt_region_gb(faa_file,region_start,region_end):
 		if '' in elems:
 			elems.remove('')
 		prot_count = 0
-		for elem in elems:           
+		for elem in elems:		   
 			cur_prot_start = elem.split('\n')[0].split('|')[2].split('_')[0]
 			cur_prot_end = elem.split('\n')[0].split('|')[2].split('_')[1]
 			if (int(cur_prot_start) >= int(region_start)) and (int(cur_prot_end) <= int(region_end)):
@@ -942,13 +964,13 @@ def getProt_region_gb(faa_file,region_start,region_end):
 	return [prot_list,titles]
 
 def get_acc(filename):
-    with open(filename) as f:
-        acc = f.readlines()[0].split()
-    if is_faa(filename):
-        acc = acc[0].strip('>').split('.')[0]
-    else:
-        acc = acc[1].strip()
-    return acc
+	with open(filename) as f:
+		acc = f.readlines()[0].split()
+	if is_faa(filename):
+		acc = acc[0].strip('>').split('.')[0]
+	else:
+		acc = acc[1].strip()
+	return acc
 
 def short_blastn(file1,file2,outfile):
 	blastn_path = os.path.join(root_path,'software','blast+','blastn')
@@ -1048,27 +1070,50 @@ def identify_att(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_file
 						key_integrase_pro_id = region_protein.strip().split('\t')[0]
 						break
 
-				key_integrase_pro_start = key_integrase_pro_id.split('|')[1].split('_')[0]
-				key_integrase_pro_end = key_integrase_pro_id.split('|')[1].split('_')[1]
+				# ['gnl', 'Bakta', 'GMEOCJ_01057', '1098230_1099523_-', 'integras']
+				lineparts = key_integrase_pro_id.split('|')
+				if 'gnl' in lineparts and 'Bakta' in lineparts:
+					key_integrase_pro_start = lineparts[3].split('_')[0]
+					key_integrase_pro_end   = lineparts[3].split('_')[1]
+				else:
+					key_integrase_pro_start = lineparts[1].split('_')[0]
+					key_integrase_pro_end   = lineparts[1].split('_')[1]
+
+				# key_integrase_pro_start = key_integrase_pro_id.split('|')[1].split('_')[0]
+				# key_integrase_pro_end = key_integrase_pro_id.split('|')[1].split('_')[1]
 				up_start = 0
 				up_down = 0
 				down_start = 0
 				down_end = 0
-				#just get the region up and down 10 proteins to calculate att sites and use integrase as anchor			
+				#just get the region up and down 10 proteins to calculate att sites and use integrase as anchor
 				up_pro_sequence,up_pro_name = getUpStreamProt_gb(bac_faa_file,region_start,int(att_pro_num),strain_id)
 				down_pro_sequence,down_pro_name = getDownStreamProt_gb(bac_faa_file,region_end,int(att_pro_num),strain_id)
 				while 'NA' in up_pro_name:
 					up_pro_name.remove('NA')
+
 				up_start = 1
 				if len(up_pro_name)>0:
 					if up_pro_name[0]!='NA':
-						up_start = int(up_pro_name[0].split('|')[2].split('_')[0])			
+						# ['ref', 'gnl', 'Bakta', 'GMEOCJ_01047', '1087123_1087672_+']
+						# ['ref', 'MHBEPPOP_02592', '2722062_2722443_-']
+						lineparts = up_pro_name[0].split('|')
+						if 'gnl' in lineparts and 'Bakta' in lineparts:
+							up_start = int(lineparts[4].split('_')[0])
+						else:
+							up_start = int(lineparts[2].split('_')[0])
+
 				while 'NA' in down_pro_name:
 					down_pro_name.remove('NA')
+
 				down_end = len(bac_sequence)
 				if len(down_pro_name)>0:
 					if down_pro_name[-1]!='NA':
-						down_end = int(down_pro_name[-1].split('|')[2].split('_')[0])
+						lineparts = down_pro_name[-1].split('|')
+						if 'gnl' in lineparts and 'Bakta' in lineparts:
+							down_end = int(lineparts[4].split('_')[0])
+						else:
+							down_end = int(lineparts[2].split('_')[0])
+
 				if int(key_integrase_pro_end)<len(bac_sequence):
 					down_start = int(key_integrase_pro_end)+1
 				else:
@@ -1130,8 +1175,8 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			
 			region_start = head_summary[3]
 			region_end = head_summary[4]
-			#print(region_start+':'+region_end)
 			key_protein = head_summary[-1]
+
 			region_proteins = region.strip().split('\n')[2:]			
 			region_dir = os.path.join(att_dir,region_start+'_'+region_end)
 			out_att_file = os.path.join(region_dir,'att_info.txt')	
@@ -1160,7 +1205,6 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			new_prophage_regions.append([int(region_start),int(region_end),[]])
 		
 		new_prophage_regions.sort(key=lambda x:x[0])
-		#print(new_prophage_regions)
 		new_merge_region = []
 		for region in new_prophage_regions:
 			region_start = region[0]
@@ -1171,7 +1215,6 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 				new_merge_region[-1][1] = max(region_end,new_merge_region[-1][1])
 				if len(region[2])>0:
 					new_merge_region[-1][2].append(region[2][0])
-		#print(new_merge_region)
 
 		for region_index,region in enumerate(new_merge_region):
 			prophage_start = str(region[0])
@@ -1186,8 +1229,19 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			c_save_prophage_protein_file = os.path.join(att_dir,prophage_start+'_'+prophage_end+'_prophage.faa')
 			region_pro_sequence_list,prophage_pro_num = get_protein_to_position_genbank(bac_faa_file,prophage_start,prophage_end,c_save_prophage_protein_file,'DBSCAN-SWA',bac_info[0])
 			
-			key_words = [item.split('|')[-2] for item in region_pro_sequence_list[0::2] if len(item.split('|'))==6]
-			key_words = ','.join(list(set(','.join(key_words).split(','))))
+			# key_words = [item.split('|')[-2] for item in region_pro_sequence_list[0::2] if len(item.split('|'))==6]
+			# key_words = ','.join(list(set(','.join(key_words).split(','))))
+			
+			# берём каждый второй элемент списка
+			items = region_pro_sequence_list[0::2]
+
+			key_words = []
+			for item in items:
+				parts = item.split('|')
+				if len(parts) == 6 or len(parts) == 8:
+					key_words.extend(parts[-2].split(','))
+			key_words = ','.join(sorted(set(key_words)))
+
 					
 			all_hit_uniprot_species = [uniprot_proteins_species[bac_protein_homo_dict['ref|'+'|'.join(item.split('|')[2:-1])][0].split('|')[1]] for item in region_pro_sequence_list[0::2] if 'ref|'+'|'.join(item.split('|')[2:-1]) in bac_protein_homo_dict.keys()]
 			while 'NA' in all_hit_uniprot_species:
@@ -1203,38 +1257,55 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 			for index,region_pro in enumerate(region_pro_sequence_list[0::2]):
 				f_save_prophage_protein.write(region_pro+'|'+str(prophage_pro_num)+'\n'+region_pro_sequence_list[2*index+1].strip()+'\n')
 				f_save_prophage_protein.flush()
-			
-			# Восстановить
+					
 			# f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[int(prophage_start)-1:int(prophage_end)]+'\n')
-			pos_prophage_start = int(prophage_start)-1
-			if pos_prophage_start < 0:
-				pos_prophage_start = int(prophage_start)
-			f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[pos_prophage_start:int(prophage_end)]+'\n')
+			f_save_prophage_nucl.write('>'+bac_info[0]+'|'+prophage_start+':'+prophage_end+'|DBSCAN-SWA\n'+bac_sequence[int(prophage_start):int(prophage_end)]+'\n')
 			f_save_prophage_nucl.flush()
 			
 			f_save.write('>prophage '+str(region_index+1)+'\n')
 			
 			f_save.write('\t'.join(bac_info).strip()+'\t'+'\t'.join([prophage_start,prophage_end,key_words,hit_mf,str(prophage_pro_num),wide_attl,wide_attr])+'\n')
 			f_save.flush()
+
 			f_save_summary.write('\t'.join(bac_info).strip()+'\t'+'\t'.join([prophage_start,prophage_end,key_words,hit_mf,str(prophage_pro_num),wide_attl,wide_attr])+'\n')	
 			f_save_summary.flush()
 			attl_flag = len(att_infos)
 			attr_flag = len(att_infos)
 			for index,region_protein in enumerate(region_pro_sequence_list[0::2]):
 				flag = 0
-				c_protein_start = region_protein.split('|')[3].split('_')[0]
-				c_protein_end = region_protein.split('|')[3].split('_')[1]
-				try:
-					next_protein_end = region_pro_sequence_list[index+1].split('|')[3].split('_')[0]
-				except:
-					next_protein_end = c_protein_end
-				if len(region_protein.split('|'))==6:
+				# ['>contig_1', '1013380:1021629', 'gnl', 'Bakta', 'BMPEDJ_00956', '1013380_1013791_-', 'DBSCAN-SWA']
+				# ['>C_1', '1013380:1021629', 'ABDAGPGG_00931', '1013380_1013791_-', 'DBSCAN-SWA']
+				lineparts = region_protein.split('|')
+				if 'gnl' in lineparts and 'Bakta' in lineparts:
+					c_protein_start = lineparts[5].split('_')[0]
+					c_protein_end   = lineparts[5].split('_')[1]
+					try:
+						next_protein_end = region_pro_sequence_list[index+1].split('|')[5].split('_')[0]
+					except:
+						next_protein_end = c_protein_end
+
+					protein_id = f"{lineparts[2]}|{lineparts[3]}|{lineparts[4]}"
+				else:
+					c_protein_start = lineparts[3].split('_')[0]
+					c_protein_end   = lineparts[3].split('_')[1]
+					try:
+						next_protein_end = region_pro_sequence_list[index+1].split('|')[3].split('_')[0]
+					except:
+						next_protein_end = c_protein_end
+
+					protein_id = lineparts[2]
+
+				if len(lineparts) == 6:
 					key_protein = region_protein.split('|')[4]
+				elif len(lineparts) == 8:
+					key_protein = region_protein.split('|')[6]
 				else:
 					key_protein = 'NA'
-				
-				protein_id = region_protein.split('|')[2]
+
 				protein_def = bac_protein_def_dict[protein_id]['prodef']
+
+				# 'ref|gnl|Bakta|BMPEDJ_00959|1015047_1016757_+|tail'
+				# 'ref|BMPEDJ_00959|1015047_1016757_+|tail'
 				if 'ref|'+'|'.join(region_protein.split('|')[2:-1]) in bac_protein_homo_dict.keys():
 					hit_uniprot = bac_protein_homo_dict['ref|'+'|'.join(region_protein.split('|')[2:-1])]
 					hit_uniprot_id = hit_uniprot[0].split('|')[1]
@@ -1242,7 +1313,6 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 					save_record = ['|'.join(region_protein.strip('>').split('|')[2:-1]),protein_def,key_protein,hit_uniprot_id,hit_uniprot_def]+hit_uniprot[1:]
 				else:
 					save_record = ['|'.join(region_protein.strip('>').split('|')[2:-1]),protein_def,key_protein]+['NA']*4
-				#print(save_record)
 				if wide_attl != 'NA':
 					wide_attr_end = wide_attr.split(':')[1]
 					for att in att_infos:
@@ -1321,27 +1391,18 @@ def get_strain_info(file,outdir,prefix):
 	f_result.close()
 	return strain_inf_dict,strain_sequence_dict
 
-# def annotate_bacteria_fasta(fasta_file,outdir,prefix,kingdom):
-# 	prokka_path = os.path.join(root_path,'software','prokka','bin','prokka')
-# 	if not os.path.exists(prokka_path):
-# 		prokka_path = "prokka"
-# 	command = prokka_path+" %s --outdir %s --prefix %s --kingdom %s --force"%(fasta_file,outdir,prefix,kingdom)
-# 	print(command)
-# 	os.system(command)
-
 def annotate_bacteria_fasta(fasta_file, outdir, prefix, kingdom, proteins=''):
-    prokka_path = os.path.join(root_path, 'software', 'prokka', 'bin', 'prokka')
-    if not os.path.exists(prokka_path):
-        prokka_path = "prokka"
-    
-    # Формирование команды с условием на аргумент proteins
-    command = f"{prokka_path} {fasta_file} --outdir {outdir} --prefix {prefix} --kingdom {kingdom} --force"
-    if proteins:
-        command += f" --proteins {proteins}"
+	prokka_path = os.path.join(root_path, 'software', 'prokka', 'bin', 'prokka')
+	if not os.path.exists(prokka_path):
+		prokka_path = "prokka"
+	
+	# Формирование команды с условием на аргумент proteins
+	command = f"{prokka_path} {fasta_file} --outdir {outdir} --prefix {prefix} --kingdom {kingdom} --force"
+	if proteins:
+		command += f" --proteins {proteins}"
 
-    print(command)
-    print()
-    os.system(command)
+	print(command)
+	os.system(command)
 
 def get_bac_protein(inputfile_bac,protein_dir,strain_type,save_prefix,add_genome_id='no',kingdom='Bacteria',proteins=''):
 	if strain_type == 'fasta':
@@ -1367,6 +1428,7 @@ def get_phage_like_gene(bac_protein_file,phage_gene_annotation_dir,prefix,diamon
 	blastp_file = os.path.join(phage_gene_annotation_dir,prefix+'_blastp_uniprot.txt')
 	database = os.path.join(root_path,'db','database','uniprot.dmnd')
 	diamond_blastp(bac_protein_file,blastp_file,database,6,str(blastp_evalue),diamond_thread_num,MIN_IDN)
+
 	if os.path.exists(blastp_file):
 		if os.path.getsize(blastp_file)>0:
 			phage_like_protein_list = []
@@ -1376,8 +1438,16 @@ def get_phage_like_gene(bac_protein_file,phage_gene_annotation_dir,prefix,diamon
 			for line in contents:
 				line = line.strip().split('\t')
 				bac_pro_id = line[0]
-				pro_start = bac_pro_id.split('|')[2].split('_')[0]
-				pro_end = bac_pro_id.split('|')[2].split('_')[1]
+				# Узнаем есть ли в line[0] gnl и Bakta
+				# ['ref', 'gnl', 'Bakta', 'BMPEDJ_00323', '348516_348786_+']
+				# ['ref', 'ABDAGPGG_00309', '348516_348786_+', 'integrase']
+				lineparts = line[0].split('|')
+				if 'gnl' in lineparts and 'Bakta' in lineparts:
+					pro_start = bac_pro_id.split('|')[4].split('_')[0]
+					pro_end = bac_pro_id.split('|')[4].split('_')[1]
+				else:
+					pro_start = bac_pro_id.split('|')[2].split('_')[0]
+					pro_end = bac_pro_id.split('|')[2].split('_')[1]
 				hit_pro_id = line[1]
 				evalue = line[-2]
 				identity = line[2]
@@ -1410,7 +1480,17 @@ def predict_prophage_dbscan_swa(strain_id,bac_fna_file,bac_faa_file,dbscan_regio
 		region_end = line[1].split(':')[1]
 		proid = line[3]
 		key_proteins = line[2]
-		pro = bac_protein_def_dict[proid.split('|')[1]]
+
+		# Извлекаем ID для proteind_def
+		# ['ref', 'gnl', 'Bakta', 'BMPEDJ_00956', '1013380_1013791_-']
+		# ['ref', 'ABDAGPGG_00931', '1013380_1013791_-']
+		lineparts = proid.split('|')
+		if 'gnl' in lineparts and 'Bakta' in lineparts:
+			index_proid = f"{lineparts[1]}|{lineparts[2]}|{lineparts[3]}"
+		else:
+			index_proid = lineparts[1]
+		# pro = bac_protein_def_dict[proid.split('|')[1]]
+		pro = bac_protein_def_dict[index_proid]
 		prodef = pro['prodef']
 		key_protein = pro['key']
 		if line[4]!='NA':
@@ -1872,7 +1952,7 @@ def get_bac_phage_feature(prophage_region_file,prophage_blastp_dict_file,prophag
 	
 	prophage_blastp_hit_dict = {}
 	with open(prophage_blastp_original_file) as f:
-	    contents = f.readlines()
+		contents = f.readlines()
 	for line in contents:
 		line = line.strip().split('\t')
 		phage_pro_id = line[1]
@@ -1885,19 +1965,19 @@ def get_bac_phage_feature(prophage_region_file,prophage_blastp_dict_file,prophag
 		method = prophage_pro_id.split('|')[-2]
 		#supposing id no |
 		if '|' in phage_pro_id:
-		    if len(phage_pro_id.split('|'))>=3:
-		        phage_id = '|'.join(phage_pro_id.split('|')[0:-2]).split('.')[0]
-		    else:
-		        phage_id = '_'.join(phage_pro_id.split('_')[0:-3]).split('.')[0]
+			if len(phage_pro_id.split('|'))>=3:
+				phage_id = '|'.join(phage_pro_id.split('|')[0:-2]).split('.')[0]
+			else:
+				phage_id = '_'.join(phage_pro_id.split('_')[0:-3]).split('.')[0]
 		else:
-		    phage_id = '_'.join(phage_pro_id.split('_')[0:-3]).split('.')[0]
+			phage_id = '_'.join(phage_pro_id.split('_')[0:-3]).split('.')[0]
 		region = prophage_pro_id.split('|')[1]
 		if phage_id not in prophage_blastp_hit_dict.keys():
-		    prophage_blastp_hit_dict.update({phage_id:{}})
+			prophage_blastp_hit_dict.update({phage_id:{}})
 		if bac_id not in prophage_blastp_hit_dict[phage_id].keys():
-		    prophage_blastp_hit_dict[phage_id].update({bac_id:{}})
+			prophage_blastp_hit_dict[phage_id].update({bac_id:{}})
 		if method not in prophage_blastp_hit_dict[phage_id][bac_id].keys():
-		    prophage_blastp_hit_dict[phage_id][bac_id].update({method:{}})
+			prophage_blastp_hit_dict[phage_id][bac_id].update({method:{}})
 		if region not in prophage_blastp_hit_dict[phage_id][bac_id][method].keys():
 		   prophage_blastp_hit_dict[phage_id][bac_id][method].update({region:[]})
 		prophage_blastp_hit_dict[phage_id][bac_id][method][region].append({'phage_id':phage_id,
@@ -2204,37 +2284,37 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 		counter = counter+1
 		if attl_region!='NA':
 			f_save.write('''<trackmarker start='%s' end='%s'  markerstyle='stroke:#CD5C5C;stroke-dasharray:2,2;stroke-width:2px' wadjust="30">
-        <markerlabel text='%s' vadjust="30" style='fill:#CD5C5C'></markerlabel>
-      </trackmarker>
+		<markerlabel text='%s' vadjust="30" style='fill:#CD5C5C'></markerlabel>
+	  </trackmarker>
 			'''%(attl_start,attl_end,'attL:'+attl_sequence[0]))	
 			f_save.write('''<trackmarker start='%s' end='%s'  markerstyle='stroke:#CD5C5C;stroke-dasharray:2,2;stroke-width:2px' wadjust="50">
-        <markerlabel text='%s' vadjust="50" style='fill:#CD5C5C'></markerlabel>
-      </trackmarker>
+		<markerlabel text='%s' vadjust="50" style='fill:#CD5C5C'></markerlabel>
+	  </trackmarker>
 			'''%(attr_start,attr_end,'attR:'+attr_sequence[0]))
 		#print(key_word)
 		if key_word.strip()=='':
 			f_save.write('''<trackmarker start='%s' end='%s' markerstyle='fill:#7CEDDB'>
-      <markerlabel text='%s' vadjust=20 style='fill:#7CEDDB'></markerlabel>
-    </trackmarker>
+	  <markerlabel text='%s' vadjust=20 style='fill:#7CEDDB'></markerlabel>
+	</trackmarker>
 			'''%(prophage_start,prophage_end,str(counter)))
 		else:
 			f_save.write('''<trackmarker start='%s' end='%s' markerstyle='fill:#7CEDDB'>
-      <markerlabel text='%s' vadjust=20 style='fill:#AD1A0D'></markerlabel>
-    </trackmarker>
+	  <markerlabel text='%s' vadjust=20 style='fill:#AD1A0D'></markerlabel>
+	</trackmarker>
 			'''%(prophage_start,prophage_end,str(counter)))
 	f_save.write('</plasmidtrack>\n</plasmid>\n</div>\n</div>\n')
 	f_save.write('''<div id="CpG" style="margin:50px;font-size: 12px;">
   <table class="display" class="table table-striped table-hover table-bordered" style="border:0px;"> 
 <thead>
-      <tr style="text-align:center;">
-      <th>Prophage_ID</th>
-      <th>Prophage_region</th>
-      <th>prophage_CDS_num</th>
-      <th>Prophage_key_proteins</th>
-      <th>Prophage_best_hit_uniprot</th>
-      <th>CDS_details</th>
-      </tr>
-    </thead>
+	  <tr style="text-align:center;">
+	  <th>Prophage_ID</th>
+	  <th>Prophage_region</th>
+	  <th>prophage_CDS_num</th>
+	  <th>Prophage_key_proteins</th>
+	  <th>Prophage_best_hit_uniprot</th>
+	  <th>CDS_details</th>
+	  </tr>
+	</thead>
 			''')	
 	counter = 0
 	prophage_id_dict = {}
@@ -2261,70 +2341,70 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 			attr_end = attr_region.split(':')[1]
 		prophage_nucl_sequence = prophage_nucl_dict[prophage_start+':'+prophage_end]
 		prophage_protein_sequence = '\n'.join(list(prophage_protein_dict[prophage_start+':'+prophage_end].values()))
-		f_save.write('''<tr style="text-align:center;">     
-      <td>
-      <a data-toggle="modal" data-target="#%s" style="cursor: pointer;">%s <span class="glyphicon glyphicon-info-sign"></span></a>
-      <div class="modal fade" id="%s" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-    <div class="modal-content" style="width:700px;text-align: left;">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">
-        </button>
-        <!-- <h4 class="modal-title" id="myModalLabel">Prophage region Sequence</h4> -->
-      </div>
-      <div class="modal-body">
-        <h4>%s region DNA</h4>
-       <p style="word-wrap:break-word;word-break:break-all;">
-       <pre>%s</pre>
-       </p>
-        <h4>%s region protein</h4>
-       <p style="word-wrap:break-word;word-break:break-all;">
-       <pre>%s</pre>
-       </p>
-      </div>
-       <div class="modal-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">close
-        </button>
-      </div>
-    </div>
-    </div>
+		f_save.write('''<tr style="text-align:center;">	 
+	  <td>
+	  <a data-toggle="modal" data-target="#%s" style="cursor: pointer;">%s <span class="glyphicon glyphicon-info-sign"></span></a>
+	  <div class="modal fade" id="%s" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+	<div class="modal-content" style="width:700px;text-align: left;">
+	  <div class="modal-header">
+		<button type="button" class="close" data-dismiss="modal" aria-hidden="true">
+		</button>
+		<!-- <h4 class="modal-title" id="myModalLabel">Prophage region Sequence</h4> -->
+	  </div>
+	  <div class="modal-body">
+		<h4>%s region DNA</h4>
+	   <p style="word-wrap:break-word;word-break:break-all;">
+	   <pre>%s</pre>
+	   </p>
+		<h4>%s region protein</h4>
+	   <p style="word-wrap:break-word;word-break:break-all;">
+	   <pre>%s</pre>
+	   </p>
+	  </div>
+	   <div class="modal-footer">
+		<button type="button" class="btn btn-default" data-dismiss="modal">close
+		</button>
+	  </div>
+	</div>
+	</div>
   </div>
   </td>
 			'''%(str(counter),'DBSCAN-SWA_'+str(counter),str(counter),'DBSCAN-SWA_'+str(counter),prophage_nucl_sequence,'DBSCAN-SWA_'+str(counter),prophage_protein_sequence))
 		
 		f_save.write('''
 		<td>%s</td>
-      <td>%s</td>
-      <td>%s</td>
-      <td>%s</td>
+	  <td>%s</td>
+	  <td>%s</td>
+	  <td>%s</td>
 			'''%(prophage_start+':'+prophage_end,str(prophage_pro_num),key_word,best_hit_uniprot))
 		
 		f_save.write('''
 		<td>
-      <button data-toggle="modal" data-target="#detail_%s" style="background-color: #AD2417;color:white;width:50px;height:25px;border-radius: 5px;">view</button>
+	  <button data-toggle="modal" data-target="#detail_%s" style="background-color: #AD2417;color:white;width:50px;height:25px;border-radius: 5px;">view</button>
 		<div class="modal fade" id="detail_%s" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-    <div class="modal-content" style="width:900px;">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
-        <h4 class="modal-title" id="myModalLabel">DBSCAN-SWA_%s CDS details</h4>
-      </div>
-      <div class="modal-body">
-      <p style="color:#FFA07A;text-align: left;">The bacterium proteins that are colored denote the protein is present at specific phage-related keywords (such as 'capsid', 'head', 'integrase', 'plate', 'tail', 'fiber', 'coat', 'transposase', 'portal', 'terminase', 'protease' or 'lysin' and 'tRNA')</p>
-        <table class="display" class="table table-striped table-hover table-bordered" style="text-align: center;">
-          <thead>
-          <tr>
-            <th>bacterium_Protein</th>
-            <th>bacterium_info</th>
-            <th>key_word</th>
-            <th>hit_uniprot_id</th>
-            <th>hit_protein_info</th>
-            <th>Identity(%%)</th>
-            <th style="word-break: keep-all;white-space:nowrap;">E-value</th>
-          </tr>
-          </thead>
-          <tbody>
-          '''%(str(counter),str(counter),str(counter)))
+	<div class="modal-dialog">
+	<div class="modal-content" style="width:900px;">
+	  <div class="modal-header">
+		<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+		<h4 class="modal-title" id="myModalLabel">DBSCAN-SWA_%s CDS details</h4>
+	  </div>
+	  <div class="modal-body">
+	  <p style="color:#FFA07A;text-align: left;">The bacterium proteins that are colored denote the protein is present at specific phage-related keywords (such as 'capsid', 'head', 'integrase', 'plate', 'tail', 'fiber', 'coat', 'transposase', 'portal', 'terminase', 'protease' or 'lysin' and 'tRNA')</p>
+		<table class="display" class="table table-striped table-hover table-bordered" style="text-align: center;">
+		  <thead>
+		  <tr>
+			<th>bacterium_Protein</th>
+			<th>bacterium_info</th>
+			<th>key_word</th>
+			<th>hit_uniprot_id</th>
+			<th>hit_protein_info</th>
+			<th>Identity(%%)</th>
+			<th style="word-break: keep-all;white-space:nowrap;">E-value</th>
+		  </tr>
+		  </thead>
+		  <tbody>
+		  '''%(str(counter),str(counter),str(counter)))
 		
 		for prophage_protein in line.strip().split('\n')[2:]:
 			prophage_region = prophage_protein.strip().split('\t')
@@ -2333,29 +2413,29 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 			else:
 				style_color = 'black'
 			f_save.write('''   
-          <tr style="color:%s">
-            <td style="word-break: break-all; word-wrap:break-word;">%s</td>
-            <td style="word-break: break-all; word-wrap:break-word;">%s</td>
-            <td style="word-break: break-all; word-wrap:break-word;">%s</td>
-            <td>%s</td>
-            <td>%s</td>
-            <td>%s</td>
-            <td style="word-break: keep-all;white-space:nowrap;">%s</td>
-          </tr>
+		  <tr style="color:%s">
+			<td style="word-break: break-all; word-wrap:break-word;">%s</td>
+			<td style="word-break: break-all; word-wrap:break-word;">%s</td>
+			<td style="word-break: break-all; word-wrap:break-word;">%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td style="word-break: keep-all;white-space:nowrap;">%s</td>
+		  </tr>
 			'''%(style_color,prophage_region[0],prophage_region[1],prophage_region[2],prophage_region[3],prophage_region[4],prophage_region[5],prophage_region[6]))
 		f_save.write('''
-        	</tbody>
-        </table>
-        </div>
-        </div>
-        </div>
-        </td>
-        </tr>''')
+			</tbody>
+		</table>
+		</div>
+		</div>
+		</div>
+		</td>
+		</tr>''')
 	
 	f_save.write('''
 		</tbody>
-        </table>
-        </div>''')
+		</table>
+		</div>''')
 	
 	if add_annotation!='none':
 		f_save.write('''<p style='font-size:20px;text-align:center;'><strong>Phage Annotation</strong></p>
@@ -2363,17 +2443,17 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 			<div id="CpG" style="margin:50px;font-size: 12px;">
   <table class="display" class="table table-striped table-hover table-bordered" style="border:0px;"> 
 <thead>
-      <tr style="text-align:center;">
-      <th>Prophage_ID</th>
-      <th>Prophage_region</th>
-      <th>Hit_Phage</th>
-      <th>Prophage_homology_percent</th>
-      <th>Prophage_alignment_identity(%)</th>
-      <th>Prophage_alignment_coverage</th>
-      <th>Hit_info</th>
-      </tr>
-    </thead>
-    <tbody>
+	  <tr style="text-align:center;">
+	  <th>Prophage_ID</th>
+	  <th>Prophage_region</th>
+	  <th>Hit_Phage</th>
+	  <th>Prophage_homology_percent</th>
+	  <th>Prophage_alignment_identity(%)</th>
+	  <th>Prophage_alignment_coverage</th>
+	  <th>Hit_info</th>
+	  </tr>
+	</thead>
+	<tbody>
 			''')
 		prophage_hit_phage_file = os.path.join(prophage_region_annotate_dir,prefix+'_prophage_annotate_phage_details.txt')
 		if os.path.exists(prophage_hit_phage_file):
@@ -2395,11 +2475,11 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 				<tr>
 					<td>DBSCAN-SWA_%s</td>
 					<td>%s</td>
-	      			<td><a href="https://www.ncbi.nlm.nih.gov/nuccore/%s">%s</a></td>
-	      			<td>%s</td>
-	      			<td>%s</td>
-	      			<td>%s</td>
-	      			'''%(prophage_counter,prophage_id,hit_phage_id,hit_phage_def,phis_line[-3],phis_line[-2],phis_line[-1]))
+		  			<td><a href="https://www.ncbi.nlm.nih.gov/nuccore/%s">%s</a></td>
+		  			<td>%s</td>
+		  			<td>%s</td>
+		  			<td>%s</td>
+		  			'''%(prophage_counter,prophage_id,hit_phage_id,hit_phage_def,phis_line[-3],phis_line[-2],phis_line[-1]))
 				if len(phis)==2:
 					f_save.write('''
 					<td style="color:#F05555;font-size: 15px;">
@@ -2412,44 +2492,44 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 	<td style="font-size: 13px;">
 	<button data-toggle="modal" data-target="#DBSCAN-SWA_%s" style="background-color: #AD2417;color:white;width:50px;height:25px;border-radius: 5px;">detail</button>
 	<div class="modal fade" id="DBSCAN-SWA_%s" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-	    <div class="modal-dialog">
-	    <div class="modal-content" style="width:800px;text-align:center;">
-	      <div class="modal-header">
-	        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
-	        <h4 class="modal-title" id="myModalLabel">Blastp and Blastn of %s VS %s</h4>
-	      </div>
-	      <div class="modal-body">
-	        <div class="btn-group" data-toggle="buttons">
-	        <table>
-	        <tr>
-	        <td id="blastp--DBSCAN-SWA_%s" style="font-size: 20px;border:2px solid #D8F2AF;text-align: center;" onclick="show(this.id)">
-	         <button type="button" class="btn btn-default" style="vertical-align: center;font-size: 15px;padding-top: 10px;padding-bottom: 10px;">
-	           blastp results
-	        </button>
-	        </td>       
-	          <td id="blastn--DBSCAN-SWA_%s" style="font-size: 15px;border:2px solid #D8F2AF;text-align: center;" onclick="show(this.id)">
-	          <button type="button" class="btn btn-default" style="vertical-align: center;font-size: 15px;padding-top: 10px;padding-bottom: 10px;">
-	         blastn results
-	        </button>
-	        </td>
-	       
-	        </tr>
-	        
-	      </table>
-	    </div>'''%(str(counter),str(counter),bac_id,hit_phage_id,str(counter),str(counter)))
+		<div class="modal-dialog">
+		<div class="modal-content" style="width:800px;text-align:center;">
+		  <div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+			<h4 class="modal-title" id="myModalLabel">Blastp and Blastn of %s VS %s</h4>
+		  </div>
+		  <div class="modal-body">
+			<div class="btn-group" data-toggle="buttons">
+			<table>
+			<tr>
+			<td id="blastp--DBSCAN-SWA_%s" style="font-size: 20px;border:2px solid #D8F2AF;text-align: center;" onclick="show(this.id)">
+			 <button type="button" class="btn btn-default" style="vertical-align: center;font-size: 15px;padding-top: 10px;padding-bottom: 10px;">
+			   blastp results
+			</button>
+			</td>	   
+			  <td id="blastn--DBSCAN-SWA_%s" style="font-size: 15px;border:2px solid #D8F2AF;text-align: center;" onclick="show(this.id)">
+			  <button type="button" class="btn btn-default" style="vertical-align: center;font-size: 15px;padding-top: 10px;padding-bottom: 10px;">
+			 blastn results
+			</button>
+			</td>
+		   
+			</tr>
+			
+		  </table>
+		</div>'''%(str(counter),str(counter),bac_id,hit_phage_id,str(counter),str(counter)))
 					f_save.write('''
 			<div id="blastp--DBSCAN-SWA_%s_result">
-	        <table class="display" class="table table-striped table-hover table-bordered" style="text-align: center;">
-	          <thead>
-	          <tr>
-	            <th>Prophage_Protein</th>
-	            <th>Hit_Phage_Protein</th>
-	            <th>Identity(%%)</th>
-	            <th>Coverage</th>
-	            <th style="word-break: keep-all;white-space:nowrap;">E-value</th>
-	          </tr>
-	          </thead>
-	          <tbody>
+			<table class="display" class="table table-striped table-hover table-bordered" style="text-align: center;">
+			  <thead>
+			  <tr>
+				<th>Prophage_Protein</th>
+				<th>Hit_Phage_Protein</th>
+				<th>Identity(%%)</th>
+				<th>Coverage</th>
+				<th style="word-break: keep-all;white-space:nowrap;">E-value</th>
+			  </tr>
+			  </thead>
+			  <tbody>
 						'''%(str(counter)))
 					for blastp_info in phis[3:]:
 						if '#blastn' in blastp_info:
@@ -2457,56 +2537,56 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 						blastp_info = blastp_info.strip().split('\t')
 						f_save.write('''
 			<tr>
-	            <td style="word-break: break-all; word-wrap:break-word;">%s</td>
-	            <td style="word-break: break-all; word-wrap:break-word;">%s</td>
-	            <td>%s</td>
-	            <td>%s</td>
-	            <td style="word-break: keep-all;white-space:nowrap;">%s</td>
-	        </tr>
+				<td style="word-break: break-all; word-wrap:break-word;">%s</td>
+				<td style="word-break: break-all; word-wrap:break-word;">%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td style="word-break: keep-all;white-space:nowrap;">%s</td>
+			</tr>
 							'''%(blastp_info[1],blastp_info[3],blastp_info[4],blastp_info[5],blastp_info[6]))
 					f_save.write('''
 							</tbody>
-	       				 </table>
-	      				</div>
+		   				 </table>
+		  				</div>
 							''')
 					f_save.write('''
-			<div id="blastn--DBSCAN-SWA_%s_result">      
-	        <table class="display" class="table table-striped table-hover table-bordered">
-	          <thead>
-	          <tr>
-	            <th>Hit_Prophage_Region</th>
-	            <th>Hit_Phage_Region</th>
-	            <th>Alignment Length</th>
-	            <th>Identity</th>
-	            <th>E-value</th>
-	          </tr>
-	          </thead>
-	          <tbody>
+			<div id="blastn--DBSCAN-SWA_%s_result">	  
+			<table class="display" class="table table-striped table-hover table-bordered">
+			  <thead>
+			  <tr>
+				<th>Hit_Prophage_Region</th>
+				<th>Hit_Phage_Region</th>
+				<th>Alignment Length</th>
+				<th>Identity</th>
+				<th>E-value</th>
+			  </tr>
+			  </thead>
+			  <tbody>
 						'''%(str(counter)))
 					for blastn_info in '\n'.join(phis).split('#blastn')[-1].split('\n'):
 						if blastn_info.strip()!='':
 							blastn_info = blastn_info.strip().split('\t')
 							f_save.write('''
 			<tr>
-	            <td style="word-break: break-all; word-wrap:break-word;">%s|%s</td>
-	            <td>%s|%s</td>
-	            <td>%s</td>            
-	            <td>%s</td>
-	            <td style="word-break: keep-all;white-space:nowrap;">%s</td>
-	        </tr>
+				<td style="word-break: break-all; word-wrap:break-word;">%s|%s</td>
+				<td>%s|%s</td>
+				<td>%s</td>			
+				<td>%s</td>
+				<td style="word-break: keep-all;white-space:nowrap;">%s</td>
+			</tr>
 				'''%(blastn_info[1],blastn_info[2],hit_phage_id,blastn_info[4],blastn_info[5],blastn_info[6],blastn_info[7]))
 					f_save.write('''
 							</tbody>
-	       				 </table>
-	      				</div>
+		   				 </table>
+		  				</div>
 							''')
 					f_save.write('''
-	      </div>      
-	      <div class="modal-footer">
-	        <button type="button" class="btn btn-default" data-dismiss="modal">close
-	        </button>        
-	      </div>
-	    </div><!-- /.modal-content -->
+		  </div>	  
+		  <div class="modal-footer">
+			<button type="button" class="btn btn-default" data-dismiss="modal">close
+			</button>		
+		  </div>
+		</div><!-- /.modal-content -->
 	  </div><!-- /.modal -->
 	</div>
 	</td>
@@ -2521,20 +2601,22 @@ def visualize(save_prophage_file,save_prophage_nucl_file,save_prophage_protein_f
 		</body>
 		</html>''')
 
-def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num,PROTEINS,MIN_IDN):
+def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num,MIN_IDN):
+# def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num,PROTEINS,MIN_IDN):
 	start = time.time()
 	
 	#step1:get the proteins in bacterial genome,annotate genome using prokka if in fasta format, else extract proteins
-	print('step1:extract or predict the proteins in bacterial genome')
+	print('STEP1:extract or predict the proteins in bacterial genome')
 	protein_dir = os.path.join(outdir,'protein_annotation')
 	mkdir(protein_dir)
-	print(protein_dir)
-	# get_bac_protein(inputfile_bac,protein_dir,type,prefix)
-	get_bac_protein(inputfile_bac,protein_dir,type,prefix,proteins=PROTEINS)
+	get_bac_protein(inputfile_bac,protein_dir,type,prefix)
+	# get_bac_protein(inputfile_bac,protein_dir,type,prefix,proteins=PROTEINS)
 	
 	bac_protein_file = os.path.join(protein_dir,prefix+'_protein.faa')
 	bac_protein_annotation_file = os.path.join(protein_dir,prefix+'_protein_def')
 	
+	print('STEP1: END ------------------', ' ', sep = "\n")
+
 	#step2:identify phage or phage-like genes
 	print('STEP2: Identify phage or phage-like genes')
 	phage_gene_annotation_dir = os.path.join(outdir,'phage_gene_cluster')
@@ -2542,22 +2624,27 @@ def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamon
 	# phage_like_protein_list = get_phage_like_gene(bac_protein_file,phage_gene_annotation_dir,prefix,diamond_thread_num)
 	phage_like_protein_list = get_phage_like_gene(bac_protein_file,phage_gene_annotation_dir,prefix,diamond_thread_num,MIN_IDN)
 	bac_protein_blastp_phage_db_file = os.path.join(phage_gene_annotation_dir,prefix+'_blastp_uniprot.txt')
-	print()
+	if os.path.getsize(bac_protein_blastp_phage_db_file) == 0:
+		print('----------------------------------------------------------')
+		print('STEP2: No prophage proteins found ', prefix)
+		print('----------------------------------------------------------')
+		return
+	print('STEP2: END ------------------', ' ', sep = "\n")
 
 	#step3: execute dbscan,SWA
-	print('STEP3:predict prophage regions by DBSCAN and SWA')
+	print('STEP3: Predict prophage regions by DBSCAN and SWA')
 	m1 = threading.Thread(target=dbscan,args=(phage_like_protein_list,phage_gene_annotation_dir,prefix))
-	# m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,60,prefix))
-	m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,6,prefix))
+	m2 = threading.Thread(target=predict_prophage_swa,args=(bac_protein_file,bac_protein_blastp_phage_db_file,phage_gene_annotation_dir,60,prefix))
 	m1.start()
 	m2.start()
 	m1.join()
 	m2.join()
+
 	dbscan_region_file = os.path.join(phage_gene_annotation_dir,prefix+'_dbscan_cluster_phage_protein.txt')
 	swa_region_file = os.path.join(phage_gene_annotation_dir,prefix+'_swa_cluster_phage_protein.txt')
-	
+
 	#step4:merge prophage region
-	print('step4:predict prophage regions based on step3')
+	print('STEP4: Predict prophage regions based on STEP3')
 	prophage_outdir = os.path.join(outdir,'prophage_region')
 	mkdir(prophage_outdir)
 	bac_fna_file = os.path.join(protein_dir,prefix+'.fna')
@@ -2569,7 +2656,7 @@ def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamon
 	save_prophage_nucl_file = os.path.join(prophage_outdir,prefix+'_prophage.fna')
 
 	#step5:predict attachment sites and boundary locating
-	print('step5:predict attachment sites and determine the boundaries of the prophage region')
+	print('STEP5: Predict attachment sites and determine the boundaries of the prophage region')
 	att_outdir = os.path.join(prophage_outdir,'att_detection')
 	mkdir(att_outdir)
 	save_prophage_file = os.path.join(outdir,prefix+'_DBSCAN-SWA_prophage.txt')
@@ -2609,7 +2696,8 @@ def predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamon
 	print('Running time: %s minutes! Finished prediction in %s'%(run_time,outdir))
 
 class MyThread(threading.Thread):
-	def __init__(self,strain_id,inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num,PROTEINS,MIN_IDN):
+	def __init__(self,strain_id,inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num,MIN_IDN):
+	# def __init__(self,strain_id,inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num,PROTEINS,MIN_IDN):
 		threading.Thread.__init__(self)
 		self.strain_id = strain_id
 		self.inputfile_bac = inputfile_bac
@@ -2617,10 +2705,11 @@ class MyThread(threading.Thread):
 		self.add_annotation = add_annotation
 		self.c_prefix = c_prefix
 		self.diamond_thread_num = diamond_thread_num
-		self.ATT_PROTEINS = PROTEINS
+		# self.ATT_PROTEINS = PROTEINS
 		self.ATT_MIN_IDN = MIN_IDN
 	def run(self):
-		predict_prophage(self.strain_id,self.inputfile_bac,self.c_outdir,self.add_annotation,self.c_prefix,self.diamond_thread_num,self.ATT_PROTEINS,self.ATT_MIN_IDN)
+		predict_prophage(self.strain_id,self.inputfile_bac,self.c_outdir,self.add_annotation,self.c_prefix,self.diamond_thread_num,self.ATT_MIN_IDN)
+		# predict_prophage(self.strain_id,self.inputfile_bac,self.c_outdir,self.add_annotation,self.c_prefix,self.diamond_thread_num,self.ATT_PROTEINS,self.ATT_MIN_IDN)
 
 def getFaaFromGB(gb_file_path,faa_file_path):
 	records = SeqIO.parse(gb_file_path, "gb")
@@ -2661,7 +2750,7 @@ def getFaaFromGB(gb_file_path,faa_file_path):
 						else:
 							proteinId = 'unknown'
 					else:
-					    proteinId = 'unknown'
+						proteinId = 'unknown'
 				if 'translation' in feature.qualifiers:
 					translation = feature.qualifiers['translation'][0]
 				else:
@@ -2751,6 +2840,7 @@ if __name__=='__main__':
 		ATT_PROTEINS = args.proteins
 	else:
 		ATT_PROTEINS = ''
+		#sys.exit(1)
 
 	global ATT_MIN_IDN
 	if args.min_idn:
@@ -2811,20 +2901,20 @@ if __name__=='__main__':
 		att_pro_num = args.protein_number
 		if int(att_pro_num)<1:
 			print('Warning:the protein number of expanding can not be smaller than 1')
-			att_pro_num = 1
-			print('the protein number of expanding has been set to 1')
+			att_pro_num = 10
+			print('the protein number of expanding has been set to 10')
 	else:
-		att_pro_num = 1
+		att_pro_num = 10
 		
 	global min_protein_num
 	if args.min_protein_num:
 		min_protein_num = args.min_protein_num
-		if int(min_protein_num)<1:
-			print('Warning:the protein number of shaping a cluster can not be smaller than 1')
-			min_protein_num = 1
-			print('the protein number of expanding has been set to 1')
+		if int(min_protein_num)<6:
+			print('Warning:the protein number of shaping a cluster can not be smaller than 6')
+			min_protein_num = 6
+			print('the protein number of expanding has been set to 6')
 	else:
-		min_protein_num = 1
+		min_protein_num = 6
 	
 	root_path = get_root_path()
 	database = os.path.join(root_path,'db')
@@ -2856,21 +2946,22 @@ if __name__=='__main__':
 	strain_inf_dict,type = get_inf(inputfile_bac,outdir,prefix)
 	if len(list(strain_inf_dict.keys()))==1:
 		strain_id = list(strain_inf_dict.keys())[0]
-		# predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num)
-		predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num, PROTEINS=ATT_PROTEINS, MIN_IDN=ATT_MIN_IDN)
+		predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num, MIN_IDN=ATT_MIN_IDN)
+		# predict_prophage(strain_id,inputfile_bac,outdir,add_annotation,prefix,diamond_thread_num, PROTEINS=ATT_PROTEINS, MIN_IDN=ATT_MIN_IDN)
 	else:
 		counter = 0
 		tsk = []
 		multi_dir = os.path.join(outdir,'results')
 		mkdir(multi_dir)
-		print(strain_inf_dict)
+		# print(strain_inf_dict)
 		for strain_id in strain_inf_dict.keys():
 			c_outdir = os.path.join(multi_dir,prefix+'_'+str(counter))
 			c_prefix = prefix+'_'+str(counter)
 			mkdir(c_outdir)
-			print(counter)
+			# print(counter)
 			c_inputfile_bac = os.path.join(c_outdir,prefix+'_'+str(counter)+'.gb')
 			c_inputfile_bac_protein = os.path.join(c_outdir,prefix+'_'+str(counter)+'.faa')
+			
 			if not os.path.exists(c_inputfile_bac):
 				c_inputfile_bac = os.path.join(c_outdir,prefix+'_'+str(counter)+'.fna')
 			if not os.path.exists(c_inputfile_bac_protein):
@@ -2880,10 +2971,14 @@ if __name__=='__main__':
 					c_inputfile_bac = os.path.join(c_outdir,prefix+'_'+str(counter)+'.fna')
 			# with open(c_inputfile_bac,'w') as f:
 			# 	f.write('>'+strain_id+' '+strain_inf_dict[strain_id]+'\n'+strain_sequence_dict[strain_id]+'\n')
+			if not os.path.exists(c_inputfile_bac):
+				continue
 			pro_file = os.path.join(c_outdir,'protein_annotation',c_prefix+'_protein.faa')
 			if os.path.getsize(c_inputfile_bac)>0:
-				tsk.append(MyThread(strain_id,c_inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num, ATT_PROTEINS, ATT_MIN_IDN))			
+				tsk.append(MyThread(strain_id,c_inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num, ATT_MIN_IDN))
+				# tsk.append(MyThread(strain_id,c_inputfile_bac,c_outdir,add_annotation,c_prefix,diamond_thread_num, ATT_PROTEINS, ATT_MIN_IDN))
 			counter = counter+1
+
 		for t in tsk:
 			t.start()
 			#time.sleep(1)
@@ -2898,10 +2993,7 @@ if __name__=='__main__':
 		f_save.flush()
 		save_file_detail = os.path.join(outdir,prefix+'_DBSCAN-SWA_prophage.txt')
 		f_save_detail = open(save_file_detail,'w')
-		f_save_detail.write('''The following contents displays predicted prophage regions
-first line of each prophage describes the prophage information and the following lines describe the proteins and homology proteins in uniprot database
-contig_id\tcontig_def\tgenome_size\tprophage_start\tprophage_end\tkey_proteins\tbest_hit_species\tCDS_number\tattl_region\tattr_region\n
-''')
+		f_save_detail.write('''The following contents displays predicted prophage regions first line of each prophage describes the prophage information and the following lines describe the proteins and homology proteins in uniprot database contig_id\tcontig_def\tgenome_size\tprophage_start\tprophage_end\tkey_proteins\tbest_hit_species\tCDS_number\tattl_region\tattr_region\n''')
 		save_file_pro = os.path.join(outdir,prefix+'_DBSCAN-SWA_prophage.faa')
 		f_save_pro = open(save_file_pro,'w')
 		save_file_nucl = os.path.join(outdir,prefix+'_DBSCAN-SWA_prophage.fna')
