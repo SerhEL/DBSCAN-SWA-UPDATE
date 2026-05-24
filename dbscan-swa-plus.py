@@ -1336,8 +1336,12 @@ def decide_boundary(strain_id,bac_fna_file,bac_faa_file,prophage_region_detail_f
 								attr_flag = attr_flag-1
 						
 						if index==len(region_pro_sequence_list[0::2])-1:	
-					
-							if int(attr_end) > int(region_pro_sequence_list[0::2][-1].strip().split('|')[3].split('_')[1]):
+							last = region_pro_sequence_list[0::2][-1].strip().split('|')
+							if len(last) > 5 and '_' in last[5]:
+								last_coord = int(last[5].split('_')[1])
+
+							# if int(attr_end) > int(region_pro_sequence_list[0::2][-1].strip().split('|')[3].split('_')[1]):
+							if int(attr_end) > last_coord:
 								f_save.write('\t'.join(save_record)+'\n')
 								flag = 1
 								f_save.write(attr_start+':'+attr_end+'\tattR\t'+attr_sequence+'\t'+'\t'.join(['NA']*4)+'\n')
